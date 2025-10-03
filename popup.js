@@ -10,6 +10,7 @@ class PDFInstructorPopup {
         document.getElementById('jsonFile').addEventListener('change', (e) => this.handleJSONFile(e));
         document.getElementById('openViewer').addEventListener('click', () => this.openViewer());
         document.getElementById('openInTab').addEventListener('click', () => this.openInTab());
+        document.getElementById('openSettings').addEventListener('click', () => this.openSettings());
     }
 
     handlePDFFile(event) {
@@ -138,6 +139,16 @@ class PDFInstructorPopup {
         } catch (error) {
             console.error('Error opening PDF in tab:', error);
             this.showStatus('Error opening PDF', 'error');
+        }
+    }
+
+    async openSettings() {
+        try {
+            // Open the settings page
+            chrome.runtime.openOptionsPage();
+        } catch (error) {
+            console.error('Error opening settings:', error);
+            this.showStatus('Error opening settings', 'error');
         }
     }
 

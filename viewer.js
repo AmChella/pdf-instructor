@@ -44,10 +44,46 @@ class PDFInstructorViewer {
         this.coordForm = document.getElementById('coordForm');
         this.coordFormStatus = document.getElementById('coordFormStatus');
         this.coordinateEndpoint = '/api/coordinates';
+        this.apiToken = '';
+        
+        // Load API settings
+        this.loadApiSettings();
         this.setupModalHandlers();
 
         // Check if we should load from storage
         this.checkForStoredPDF();
+    }
+
+    async loadApiSettings() {
+        try {
+            const result = await chrome.storage.sync.get(['apiUrl', 'apiToken']);
+            
+            if (result.apiUrl) {
+                this.coordinateEndpoint = result.apiUrl;
+                console.log('API URL loaded from settings:', this.coordinateEndpoint);
+            }
+            
+            if (result.apiToken) {
+                this.apiToken = result.apiToken;
+                console.log('API token loaded from settings');
+            }
+            
+            // If no settings are configured, show a message to the user
+            if (!result.apiUrl || !result.apiToken) {
+                console.warn('API settings not configured. Please configure API URL and token in extension settings.');
+            }
+        } catch (error) {
+            console.error('Error loading API settings:', error);
+        }
+    }
+
+    openSettings() {
+        try {
+            chrome.runtime.openOptionsPage();
+        } catch (error) {
+            console.error('Error opening settings:', error);
+            this.showStatus('Error opening settings page', 'error');
+        }
     }
 
     async checkForStoredPDF() {
@@ -106,6 +142,11 @@ class PDFInstructorViewer {
                 if (!this.pdfDoc) return;
                 this.showAllDetections();
             });
+        }
+
+        const settingsBtn = document.getElementById('openSettings');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => this.openSettings());
         }
 
         document.addEventListener('keydown', (e) => {
@@ -311,22 +352,63 @@ class PDFInstructorViewer {
     async handleCoordSubmit(event) {
         event.preventDefault();
         if (!this.coordForm) return;
+        
+        // Check if API settings are configured
+        if (!this.coordinateEndpoint || this.coordinateEndpoint === '/api/coordinates') {
+            this.setCoordFormStatus('API URL not configured. Please check extension settings.', 'error');
+            this.showStatus('API settings not configured', 'error');
+            return;
+        }
+        
+        if (!this.apiToken) {
+            this.setCoordFormStatus('API token not configured. Please check extension settings.', 'error');
+            this.showStatus('API token not configured', 'error');
+            return;
+        }
+        
         const formData = new FormData(this.coordForm);
         const payload = Object.fromEntries(formData.entries());
+        
         // Convert numerics
-        ['page','pdfX','pdfY','canvasX','canvasY','lineNumber'].forEach(k=> { if (payload[k] !== undefined && payload[k] !== '') payload[k] = Number(payload[k]); });
+        ['page','pdfX','pdfY','canvasX','canvasY','lineNumber'].forEach(k=> { 
+            if (payload[k] !== undefined && payload[k] !== '') payload[k] = Number(payload[k]); 
+        });
+        
         // Attach operation if present and meaningful
         if (payload.imageOperation === '') delete payload.imageOperation;
+        
         this.setCoordFormStatus('Submitting...', '');
+        
         try {
-            const res = await fetch(this.coordinateEndpoint, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
-            if (!res.ok) throw new Error(`Server responded ${res.status}`);
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.apiToken}`
+            };
+            
+            console.log('Submitting coordinates to:', this.coordinateEndpoint);
+            console.log('Payload:', payload);
+            
+            const res = await fetch(this.coordinateEndpoint, { 
+                method: 'POST', 
+                headers: headers, 
+                body: JSON.stringify(payload) 
+            });
+            
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Server responded ${res.status}: ${errorText}`);
+            }
+            
+            const responseData = await res.json().catch(() => ({}));
+            console.log('Submission response:', responseData);
+            
             this.setCoordFormStatus('Submitted successfully.', 'success');
-            setTimeout(()=> this.closeCoordModal(), 800);
-            this.showStatus('Coordinate submitted', 'success');
+            setTimeout(() => this.closeCoordModal(), 800);
+            this.showStatus('Coordinate submitted successfully', 'success');
+            
         } catch (err) {
             console.error('Coordinate submit error:', err);
-            this.setCoordFormStatus('Submission failed. Check console / server.', 'error');
+            this.setCoordFormStatus(`Submission failed: ${err.message}`, 'error');
             this.showStatus('Coordinate submission failed', 'error');
         }
     }

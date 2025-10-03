@@ -75,11 +75,12 @@ body {
 
 .action-buttons {
     display: flex;
+    flex-direction: column;
     gap: 10px;
     margin-bottom: 15px;
 }
 
-.primary-btn, .secondary-btn {
+.primary-btn, .secondary-btn, .settings-btn {
     flex: 1;
     padding: 12px 16px;
     border: none;
@@ -128,6 +129,18 @@ body {
     border-color: #e1e8ed;
     cursor: not-allowed;
     transform: none;
+}
+
+.settings-btn {
+    background: #f8f9fa;
+    color: #495057;
+    border: 2px solid #dee2e6;
+}
+
+.settings-btn:hover {
+    background: #e9ecef;
+    color: #343a40;
+    transform: translateY(-1px);
 }
 
 .info-section {

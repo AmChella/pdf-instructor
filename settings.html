@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Instructor - Settings</title>
+    <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+    <div class="settings-container">
+        <header class="settings-header">
+            <h1>PDF Instructor Settings</h1>
+            <p>Configure API settings for coordinate submission</p>
+        </header>
+        
+        <main class="settings-main">
+            <form id="settingsForm" class="settings-form">
+                <div class="form-group">
+                    <label for="apiUrl" class="form-label">API URL</label>
+                    <input 
+                        type="url" 
+                        id="apiUrl" 
+                        name="apiUrl" 
+                        class="form-input" 
+                        placeholder="https://api.example.com/coordinates"
+                        required
+                    >
+                    <small class="form-help">Enter the complete URL where coordinates will be submitted</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="apiToken" class="form-label">API Token</label>
+                    <input 
+                        type="password" 
+                        id="apiToken" 
+                        name="apiToken" 
+                        class="form-input" 
+                        placeholder="Enter your API token"
+                        required
+                    >
+                    <small class="form-help">Your authentication token for API access</small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Test Connection</label>
+                    <button type="button" id="testConnection" class="btn btn-secondary">
+                        Test API Connection
+                    </button>
+                    <div id="testResult" class="test-result"></div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                    <button type="button" id="resetSettings" class="btn btn-secondary">Reset to Default</button>
+                </div>
+            </form>
+            
+            <div id="statusMessage" class="status-message"></div>
+        </main>
+        
+        <footer class="settings-footer">
+            <p>Changes are automatically saved to your Chrome extension storage</p>
+        </footer>
+    </div>
+    
+    <script src="settings.js"></script>
+</body>
+</html>
