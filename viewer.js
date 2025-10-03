@@ -8,7 +8,7 @@ class PDFInstructorViewer {
     constructor() {
         console.log('PDFInstructorViewer constructor called');
         console.log('PDF.js version available:', typeof pdfjsLib !== 'undefined' ? 'YES' : 'NO');
-        
+
         this.pdfDoc = null;
         this.currentPage = 1;
         this.pageRendering = false;
@@ -45,10 +45,20 @@ class PDFInstructorViewer {
         this.coordFormStatus = document.getElementById('coordFormStatus');
         this.coordinateEndpoint = '/api/coordinates';
         this.apiToken = '';
-        
+
         // Load API settings
         this.loadApiSettings();
         this.setupModalHandlers();
+
+        // Listen for storage changes to refresh API settings
+        if (chrome.storage && chrome.storage.onChanged) {
+            chrome.storage.onChanged.addListener((changes, areaName) => {
+                if (areaName === 'sync' && (changes.apiUrl || changes.apiToken)) {
+                    console.log('API settings changed, refreshing...');
+                    this.refreshApiSettings();
+                }
+            });
+        }
 
         // Check if we should load from storage
         this.checkForStoredPDF();
@@ -56,25 +66,66 @@ class PDFInstructorViewer {
 
     async loadApiSettings() {
         try {
-            const result = await chrome.storage.sync.get(['apiUrl', 'apiToken']);
-            
-            if (result.apiUrl) {
-                this.coordinateEndpoint = result.apiUrl;
+            // Use the static method from SettingsManager if available, otherwise fallback to direct storage access
+            let settings;
+            if (typeof SettingsManager !== 'undefined' && SettingsManager.getSettings) {
+                settings = await SettingsManager.getSettings();
+            } else {
+                const result = await chrome.storage.sync.get(['apiUrl', 'apiToken']);
+                settings = {
+                    apiUrl: result.apiUrl || '',
+                    apiToken: result.apiToken || ''
+                };
+            }
+
+            if (settings.apiUrl) {
+                this.coordinateEndpoint = settings.apiUrl;
                 console.log('API URL loaded from settings:', this.coordinateEndpoint);
             }
-            
-            if (result.apiToken) {
-                this.apiToken = result.apiToken;
+
+            if (settings.apiToken) {
+                this.apiToken = settings.apiToken;
                 console.log('API token loaded from settings');
             }
-            
+
             // If no settings are configured, show a message to the user
-            if (!result.apiUrl || !result.apiToken) {
+            if (!settings.apiUrl || !settings.apiToken) {
                 console.warn('API settings not configured. Please configure API URL and token in extension settings.');
             }
+
+            // Update API status indicator
+            this.updateApiStatusIndicator(settings);
         } catch (error) {
             console.error('Error loading API settings:', error);
+            this.updateApiStatusIndicator({ apiUrl: '', apiToken: '' });
         }
+    }
+
+    updateApiStatusIndicator(settings) {
+        const statusElement = document.getElementById('apiStatus');
+        const iconElement = document.getElementById('apiStatusIcon');
+        const textElement = document.getElementById('apiStatusText');
+
+        if (statusElement && iconElement && textElement) {
+            if (settings.apiUrl && settings.apiToken) {
+                statusElement.className = 'api-status configured';
+                iconElement.textContent = '✅';
+                textElement.textContent = 'API Configured';
+                statusElement.title = `API URL: ${settings.apiUrl}`;
+            } else {
+                statusElement.className = 'api-status not-configured';
+                iconElement.textContent = '⚠️';
+                textElement.textContent = 'API Not Configured';
+                statusElement.title = 'Click to configure API settings';
+            }
+        }
+    }
+
+    async refreshApiSettings() {
+        // Method to refresh API settings from storage
+        // Can be called when settings are updated
+        await this.loadApiSettings();
+        console.log('API settings refreshed');
     }
 
     openSettings() {
@@ -90,15 +141,15 @@ class PDFInstructorViewer {
         try {
             console.log('Checking for stored PDF data...');
             const data = await chrome.storage.local.get(['pdfData', 'pdfName', 'pdfSize', 'pdfType', 'jsonData', 'jsonName']);
-            console.log('Storage data retrieved:', { 
-                hasPdfData: !!data.pdfData, 
+            console.log('Storage data retrieved:', {
+                hasPdfData: !!data.pdfData,
                 pdfName: data.pdfName,
                 pdfSize: data.pdfSize,
                 pdfType: data.pdfType,
                 hasJsonData: !!data.jsonData,
                 jsonName: data.jsonName
             });
-            
+
             if (data.pdfData && data.pdfName) {
                 document.getElementById('loadFromStorage').textContent = `Load: ${data.pdfName}`;
                 this.showStatus(`PDF "${data.pdfName}" available from extension`, 'info');
@@ -147,6 +198,12 @@ class PDFInstructorViewer {
         const settingsBtn = document.getElementById('openSettings');
         if (settingsBtn) {
             settingsBtn.addEventListener('click', () => this.openSettings());
+        }
+
+        // Add click handler for API status indicator
+        const apiStatus = document.getElementById('apiStatus');
+        if (apiStatus) {
+            apiStatus.addEventListener('click', () => this.openSettings());
         }
 
         document.addEventListener('keydown', (e) => {
@@ -199,7 +256,7 @@ class PDFInstructorViewer {
             console.log('loadFromStorage: Starting...');
             const data = await chrome.storage.local.get(['pdfData', 'pdfName', 'pdfSize', 'pdfType', 'jsonData', 'jsonName']);
             console.log('loadFromStorage: Storage data retrieved:', data);
-            
+
             if (!data.pdfData) {
                 console.error('loadFromStorage: No PDF data found in storage');
                 this.showStatus('No PDF data found in storage', 'error');
@@ -222,11 +279,11 @@ class PDFInstructorViewer {
 
             console.log('loadFromStorage: Loading PDF with PDF.js...');
             const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
-            
+
             loadingTask.promise.then((pdfDoc) => {
                 console.log('loadFromStorage: PDF.js loaded successfully, pages:', pdfDoc.numPages);
                 this.pdfDoc = pdfDoc;
-                
+
                 if (data.jsonData) {
                     try {
                         const jsonData = JSON.parse(data.jsonData);
@@ -250,7 +307,7 @@ class PDFInstructorViewer {
                 document.getElementById('emptyState').style.display = 'none';
                 document.getElementById('pageWrapper').style.display = 'block';
                 this.currentPage = 1;
-                
+
                 console.log('loadFromStorage: Rendering first page...');
                 this.renderPage(this.currentPage).then(() => {
                     console.log('loadFromStorage: First page rendered successfully');
@@ -258,17 +315,17 @@ class PDFInstructorViewer {
                     console.error('loadFromStorage: Error rendering first page:', renderError);
                     this.showStatus('Error rendering PDF page', 'error');
                 });
-                
+
                 const lineToggle = document.getElementById('lineSpacingToggle');
                 if (lineToggle) lineToggle.disabled = false;
                 const showDetections = document.getElementById('showDetections');
                 if (showDetections) showDetections.disabled = false;
-                
+
             }).catch((pdfError) => {
                 console.error('loadFromStorage: PDF.js loading error:', pdfError);
                 this.showStatus(`Error loading PDF: ${pdfError.message}`, 'error');
             });
-            
+
         } catch (error) {
             console.error('loadFromStorage: General error:', error);
             console.error('loadFromStorage: Error stack:', error.stack);
@@ -352,60 +409,64 @@ class PDFInstructorViewer {
     async handleCoordSubmit(event) {
         event.preventDefault();
         if (!this.coordForm) return;
-        
+
+        // Refresh API settings to get the latest values from storage
+        await this.loadApiSettings();
+
         // Check if API settings are configured
         if (!this.coordinateEndpoint || this.coordinateEndpoint === '/api/coordinates') {
             this.setCoordFormStatus('API URL not configured. Please check extension settings.', 'error');
             this.showStatus('API settings not configured', 'error');
             return;
         }
-        
+
         if (!this.apiToken) {
             this.setCoordFormStatus('API token not configured. Please check extension settings.', 'error');
             this.showStatus('API token not configured', 'error');
             return;
         }
-        
+
         const formData = new FormData(this.coordForm);
         const payload = Object.fromEntries(formData.entries());
-        
+
         // Convert numerics
-        ['page','pdfX','pdfY','canvasX','canvasY','lineNumber'].forEach(k=> { 
-            if (payload[k] !== undefined && payload[k] !== '') payload[k] = Number(payload[k]); 
+        ['page','pdfX','pdfY','canvasX','canvasY','lineNumber'].forEach(k=> {
+            if (payload[k] !== undefined && payload[k] !== '') payload[k] = Number(payload[k]);
         });
-        
+
         // Attach operation if present and meaningful
         if (payload.imageOperation === '') delete payload.imageOperation;
-        
+
         this.setCoordFormStatus('Submitting...', '');
-        
+
         try {
             const headers = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${this.apiToken}`
             };
-            
+
             console.log('Submitting coordinates to:', this.coordinateEndpoint);
+            console.log('Using API token:', this.apiToken ? '***configured***' : 'NOT SET');
             console.log('Payload:', payload);
-            
-            const res = await fetch(this.coordinateEndpoint, { 
-                method: 'POST', 
-                headers: headers, 
-                body: JSON.stringify(payload) 
+
+            const res = await fetch(this.coordinateEndpoint, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(payload)
             });
-            
+
             if (!res.ok) {
                 const errorText = await res.text();
                 throw new Error(`Server responded ${res.status}: ${errorText}`);
             }
-            
+
             const responseData = await res.json().catch(() => ({}));
             console.log('Submission response:', responseData);
-            
+
             this.setCoordFormStatus('Submitted successfully.', 'success');
             setTimeout(() => this.closeCoordModal(), 800);
             this.showStatus('Coordinate submitted successfully', 'success');
-            
+
         } catch (err) {
             console.error('Coordinate submit error:', err);
             this.setCoordFormStatus(`Submission failed: ${err.message}`, 'error');
@@ -825,16 +886,16 @@ class PDFInstructorViewer {
         // Group text items by approximate Y position to form lines
         const lineThreshold = wordInfo.height * 0.5; // Words within this threshold are on the same line
         const lines = [];
-        
+
         // Sort text items by Y position (top to bottom)
         const sortedItems = [...this.textItems].sort((a, b) => b.y - a.y);
-        
+
         for (const item of sortedItems) {
             // Find existing line or create new one
-            let foundLine = lines.find(line => 
+            let foundLine = lines.find(line =>
                 Math.abs(line.y - item.y) < lineThreshold
             );
-            
+
             if (!foundLine) {
                 foundLine = {
                     y: item.y,
@@ -843,19 +904,19 @@ class PDFInstructorViewer {
                 };
                 lines.push(foundLine);
             }
-            
+
             foundLine.items.push(item);
         }
-        
+
         // Sort items within each line by X position (left to right)
         lines.forEach(line => {
             line.items.sort((a, b) => a.x - b.x);
             line.text = line.items.map(item => item.str).join(' ');
         });
-        
+
         // Sort lines by Y position (top to bottom)
         lines.sort((a, b) => b.y - a.y);
-        
+
         // Find which line contains our word
         const targetY = wordInfo.y;
         for (let i = 0; i < lines.length; i++) {
@@ -867,7 +928,7 @@ class PDFInstructorViewer {
                 };
             }
         }
-        
+
         return { lineNumber: null, lineText: '' };
     }
 
@@ -889,9 +950,9 @@ class PDFInstructorViewer {
 
             // Filter out overlay images that might be correction marks
             this.filterOverlayImages();
-            
+
             console.log(`Final image count after filtering: ${this.imageItems.length} images`);
-            
+
             // Add visual debugging - draw all image bounds temporarily
             this.drawImageBoundsDebug();
 
@@ -948,22 +1009,22 @@ class PDFInstructorViewer {
                     this.imageCounter++;
                     const bounds = this.calculateImageBounds(transform);
                     const opName = Object.keys(pdfjsLib.OPS).find(key => pdfjsLib.OPS[key] === fn) || `unknown_${fn}`;
-                    
+
                     // Filter out small overlay images that are likely correction marks
                     const imageWidth = Math.abs(bounds.right - bounds.left);
                     const imageHeight = Math.abs(bounds.top - bounds.bottom);
                     const imageArea = imageWidth * imageHeight;
-                    
+
                     // Skip very small images (likely correction marks or overlay text)
                     const minImageSize = 20; // minimum width/height in PDF units
                     const minImageArea = 400; // minimum area in PDF units squared
-                    
+
                     if (imageWidth < minImageSize || imageHeight < minImageSize || imageArea < minImageArea) {
                         console.log(`Method 1 - Skipping small overlay image ${this.imageCounter} (likely correction mark) - size: ${imageWidth.toFixed(1)}x${imageHeight.toFixed(1)}, area: ${imageArea.toFixed(1)}`);
                         this.imageCounter--; // Don't count filtered images
                         continue;
                     }
-                    
+
                     console.log(`Method 1 - Found image ${this.imageCounter} (${opName}) with bounds:`, bounds);
 
                     this.imageItems.push({
@@ -1031,39 +1092,39 @@ class PDFInstructorViewer {
 
     drawImageBoundsDebug() {
         if (this.imageItems.length === 0) return;
-        
+
         console.log('Drawing debug bounds for all detected images...');
-        
+
         // Draw thin red outlines around all detected images for debugging
         this.overlayCtx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
         this.overlayCtx.lineWidth = 2;
         this.overlayCtx.setLineDash([5, 5]); // Dashed line
-        
+
         this.imageItems.forEach((image, index) => {
             const bounds = image.bounds;
             const canvasLeft = bounds.left * this.scale;
             const canvasRight = bounds.right * this.scale;
             const canvasTop = (this.canvas.height / this.scale - bounds.top) * this.scale;
             const canvasBottom = (this.canvas.height / this.scale - bounds.bottom) * this.scale;
-            
+
             const width = canvasRight - canvasLeft;
             const height = canvasBottom - canvasTop;
-            
+
             console.log(`Debug: Image ${image.imageNumber} canvas bounds: (${canvasLeft.toFixed(1)}, ${canvasTop.toFixed(1)}, ${width.toFixed(1)}x${height.toFixed(1)})`);
-            
+
             // Draw debug rectangle
             this.overlayCtx.beginPath();
             this.overlayCtx.rect(canvasLeft, canvasTop, width, height);
             this.overlayCtx.stroke();
-            
+
             // Draw image number in corner
             this.overlayCtx.fillStyle = 'red';
             this.overlayCtx.font = 'bold 12px Arial';
             this.overlayCtx.fillText(`#${image.imageNumber}`, canvasLeft + 5, canvasTop + 15);
         });
-        
+
         this.overlayCtx.setLineDash([]); // Reset dash
-        
+
         // Clear debug outlines after 5 seconds
         setTimeout(() => {
             console.log('Clearing debug image bounds...');
@@ -1073,25 +1134,25 @@ class PDFInstructorViewer {
 
     filterOverlayImages() {
         if (this.imageItems.length <= 1) return; // No need to filter if only one image
-        
+
         const originalCount = this.imageItems.length;
         const filteredImages = [];
-        
+
         // Group images by overlapping regions
         for (let i = 0; i < this.imageItems.length; i++) {
             const currentImage = this.imageItems[i];
             let shouldKeep = true;
-            
+
             // Check image characteristics that suggest it's an overlay
-            const currentArea = currentImage.dimensions ? currentImage.dimensions.area : 
+            const currentArea = currentImage.dimensions ? currentImage.dimensions.area :
                 (currentImage.bounds.right - currentImage.bounds.left) * (currentImage.bounds.top - currentImage.bounds.bottom);
-            
+
             // Filter out very small images (likely correction marks)
             if (currentArea < 1000) { // Very small area threshold
                 console.log(`Filtering out very small image ${currentImage.imageNumber} (area: ${currentArea.toFixed(1)}) - likely correction mark`);
                 shouldKeep = false;
             }
-            
+
             // Check if image is positioned over text (likely overlay)
             if (shouldKeep && this.textItems.length > 0) {
                 const textOverlap = this.checkImageTextOverlap(currentImage);
@@ -1100,19 +1161,19 @@ class PDFInstructorViewer {
                     shouldKeep = false;
                 }
             }
-            
+
             // Check if this image overlaps with any larger image
             if (shouldKeep) {
                 for (let j = 0; j < this.imageItems.length; j++) {
                     if (i === j) continue;
-                    
+
                     const otherImage = this.imageItems[j];
                     const overlap = this.imagesOverlap(currentImage.bounds, otherImage.bounds);
-                    
+
                     if (overlap) {
                         const otherArea = otherImage.dimensions ? otherImage.dimensions.area :
                             (otherImage.bounds.right - otherImage.bounds.left) * (otherImage.bounds.top - otherImage.bounds.bottom);
-                        
+
                         // If current image is significantly smaller, it's likely an overlay
                         if (currentArea < otherArea * 0.8) {
                             console.log(`Filtering out overlay image ${currentImage.imageNumber} (area: ${currentArea.toFixed(1)}) overlapped by larger image ${otherImage.imageNumber} (area: ${otherArea.toFixed(1)})`);
@@ -1122,30 +1183,30 @@ class PDFInstructorViewer {
                     }
                 }
             }
-            
+
             if (shouldKeep) {
                 filteredImages.push(currentImage);
             }
         }
-        
+
         // Renumber the remaining images
         filteredImages.forEach((image, index) => {
             image.imageNumber = index + 1;
         });
-        
+
         this.imageItems = filteredImages;
         this.imageCounter = filteredImages.length;
-        
+
         if (originalCount !== filteredImages.length) {
             console.log(`Filtered overlay images: ${originalCount} -> ${filteredImages.length} (removed ${originalCount - filteredImages.length} overlay images)`);
         }
     }
-    
+
     checkImageTextOverlap(image) {
         // Check if image overlaps with text content
         let overlappingTextItems = 0;
         let totalTextItems = 0;
-        
+
         for (const textItem of this.textItems) {
             const textBounds = {
                 left: textItem.x,
@@ -1153,19 +1214,19 @@ class PDFInstructorViewer {
                 top: textItem.y + textItem.height * 0.8,
                 bottom: textItem.y - textItem.height * 0.2
             };
-            
+
             // Check if text overlaps with image
-            const overlaps = !(image.bounds.right < textBounds.left || 
-                              textBounds.right < image.bounds.left || 
-                              image.bounds.top < textBounds.bottom || 
+            const overlaps = !(image.bounds.right < textBounds.left ||
+                              textBounds.right < image.bounds.left ||
+                              image.bounds.top < textBounds.bottom ||
                               textBounds.top < image.bounds.bottom);
-            
+
             if (overlaps) {
                 overlappingTextItems++;
-                
+
                 // Check if the text contains correction-related keywords
                 const text = textItem.str.toLowerCase();
-                if (text.includes('corrected') || text.includes('proof') || text.includes('correction') || 
+                if (text.includes('corrected') || text.includes('proof') || text.includes('correction') ||
                     text.includes('revised') || text.includes('edit') || text.includes('update')) {
                     // Strong indication this is a correction overlay
                     return {
@@ -1177,40 +1238,40 @@ class PDFInstructorViewer {
             }
             totalTextItems++;
         }
-        
+
         const overlapRatio = totalTextItems > 0 ? overlappingTextItems / totalTextItems : 0;
-        
+
         return {
             isOverText: overlappingTextItems > 0,
             overlapRatio: overlapRatio,
             hasCorrectText: false
         };
     }
-    
+
     imagesOverlap(bounds1, bounds2) {
         // Check if two image bounds overlap
-        const overlap = !(bounds1.right < bounds2.left || 
-                         bounds2.right < bounds1.left || 
-                         bounds1.top < bounds2.bottom || 
+        const overlap = !(bounds1.right < bounds2.left ||
+                         bounds2.right < bounds1.left ||
+                         bounds1.top < bounds2.bottom ||
                          bounds2.top < bounds1.bottom);
-        
+
         if (overlap) {
             // Calculate overlap percentage
             const overlapLeft = Math.max(bounds1.left, bounds2.left);
             const overlapRight = Math.min(bounds1.right, bounds2.right);
             const overlapTop = Math.min(bounds1.top, bounds2.top);
             const overlapBottom = Math.max(bounds1.bottom, bounds2.bottom);
-            
+
             const overlapArea = (overlapRight - overlapLeft) * (overlapTop - overlapBottom);
             const bounds1Area = (bounds1.right - bounds1.left) * (bounds1.top - bounds1.bottom);
             const bounds2Area = (bounds2.right - bounds2.left) * (bounds2.top - bounds2.bottom);
-            
+
             const overlapPercentage = overlapArea / Math.min(bounds1Area, bounds2Area);
-            
+
             // Consider significant overlap if more than 50% of the smaller image overlaps
             return overlapPercentage > 0.5;
         }
-        
+
         return false;
     }
 
@@ -1295,7 +1356,7 @@ class PDFInstructorViewer {
             console.log('No images detected on this page');
             return null;
         }
-        
+
         const pdfX = x / this.scale;
         const pdfY = (this.canvas.height - y) / this.scale;
 
@@ -1305,11 +1366,11 @@ class PDFInstructorViewer {
         for (let i = 0; i < this.imageItems.length; i++) {
             const image = this.imageItems[i];
             const bounds = image.bounds;
-            
+
             console.log(`Image ${image.imageNumber} bounds: left=${bounds.left.toFixed(1)}, right=${bounds.right.toFixed(1)}, bottom=${bounds.bottom.toFixed(1)}, top=${bounds.top.toFixed(1)}`);
-            
+
             const inBounds = pdfX >= bounds.left && pdfX <= bounds.right && pdfY >= bounds.bottom && pdfY <= bounds.top;
-            
+
             console.log(`Image ${image.imageNumber} hit test: ${inBounds ? 'HIT' : 'MISS'}`);
 
             if (inBounds) {
@@ -1332,7 +1393,7 @@ class PDFInstructorViewer {
                 };
             }
         }
-        
+
         console.log('No image found at position');
         return null;
     }
@@ -1396,17 +1457,17 @@ class PDFInstructorViewer {
         } else if (wordInfo) {
             type = 'word';
             refText = wordInfo.word;
-            
+
             // Calculate line number and line text
             const lineInfo = this.getLineInfoForWord(wordInfo);
-            
-            payload = { 
-                type, 
-                page: this.currentPage, 
-                pdfX: wordInfo.coordinates.pdfX, 
-                pdfY: wordInfo.coordinates.pdfY, 
-                canvasX: wordInfo.coordinates.canvasX, 
-                canvasY: wordInfo.coordinates.canvasY, 
+
+            payload = {
+                type,
+                page: this.currentPage,
+                pdfX: wordInfo.coordinates.pdfX,
+                pdfY: wordInfo.coordinates.pdfY,
+                canvasX: wordInfo.coordinates.canvasX,
+                canvasY: wordInfo.coordinates.canvasY,
                 reference: refText,
                 lineNumber: lineInfo.lineNumber,
                 lineText: lineInfo.lineText
