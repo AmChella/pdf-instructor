@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Instructor - Viewer</title>
+    <link rel="stylesheet" href="viewer.css">
+    <script src="lib/pdf.min.js"></script>
+</head>
+<body>
+    <div class="viewer-container">
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <h1 class="logo">🔍 PDF Instructor Viewer</h1>
+                <div class="load-controls">
+                    <button id="loadFromStorage" class="btn btn-primary">Load PDF from Extension</button>
+                    <button id="loadFromFile" class="btn btn-secondary">Load New PDF</button>
+                </div>
+            </div>
+            <div class="toolbar-center">
+                <div class="navigation">
+                    <button id="prevPage" class="nav-btn" disabled>← Previous</button>
+                    <span class="page-info">Page <span id="pageNum">0</span> / <span id="pageCount">0</span></span>
+                    <button id="nextPage" class="nav-btn" disabled>Next →</button>
+                </div>
+            </div>
+            <div class="toolbar-right">
+                <button id="lineSpacingToggle" class="nav-btn" disabled>Line Spacing</button>
+                <button id="showDetections" class="nav-btn" disabled>Show Detections</button>
+            </div>
+        </div>
+        
+        <div class="file-inputs" id="fileInputSection">
+            <div class="file-input-group">
+                <label for="pdfFile">📄 PDF Document</label>
+                <input type="file" id="pdfFile" accept=".pdf" class="file-input" />
+            </div>
+            <div class="file-input-group">
+                <label for="jsonFile">📐 JSON Geometry</label>
+                <input type="file" id="jsonFile" accept=".json" class="file-input" />
+            </div>
+        </div>
+        
+        <div id="statusMessage" class="status-message" style="display: none;"></div>
+        
+        <div class="canvas-container">
+            <div id="emptyState" class="empty-state">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <h3>No PDF Loaded</h3>
+                <p>Click "Load PDF from Extension" to load the file selected in the extension popup, or "Load New PDF" to choose a different file</p>
+            </div>
+            <div id="pageWrapper" class="page-wrapper" style="display: none;">
+                <canvas id="pdfCanvas"></canvas>
+                <canvas id="overlayCanvas"></canvas>
+            </div>
+        </div>
+        
+        <div id="tooltip" class="info-tooltip"></div>
+        <div id="contextMenu" class="context-menu"></div>
+        
+        <!-- Click Dropdown Menu -->
+        <div id="clickDropdown" class="click-dropdown" style="display:none;">
+            <ul>
+                <li data-action="move-top">Move to Top</li>
+                <li data-action="move-bottom">Move to Bottom</li>
+                <li class="divider"></li>
+                <li data-action="page-prev">Previous Page</li>
+                <li data-action="page-next">Next Page</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Coordinate Submission Modal -->
+    <div id="coordModal" class="coord-modal hidden" aria-hidden="true" role="dialog" aria-labelledby="coordModalTitle" aria-modal="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="coordModalTitle" class="modal-title">Submit Coordinate</h2>
+                <button type="button" class="close-btn" data-close-modal aria-label="Close">×</button>
+            </div>
+            <form id="coordForm" class="modal-body">
+                <div class="form-row" id="imageOperationRow" style="display:none;">
+                    <div class="form-group" style="flex:1;">
+                        <label>Image Operation</label>
+                        <select name="imageOperation" id="imageOperationSelect">
+                            <option value="">-- Select Operation --</option>
+                            <option value="move_top">Move To Top</option>
+                            <option value="move_bottom">Move To Bottom</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select name="itemType" id="coordItemType" required>
+                            <option value="word">Word</option>
+                            <option value="image">Image</option>
+                            <option value="element">Element</option>
+                            <option value="table">Table</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Page</label>
+                        <input type="number" name="page" id="coordPage" min="1" required />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>PDF X</label>
+                        <input type="number" step="0.01" name="pdfX" id="coordPdfX" required />
+                    </div>
+                    <div class="form-group">
+                        <label>PDF Y</label>
+                        <input type="number" step="0.01" name="pdfY" id="coordPdfY" required />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Canvas X</label>
+                        <input type="number" step="1" name="canvasX" id="coordCanvasX" required />
+                    </div>
+                    <div class="form-group">
+                        <label>Canvas Y</label>
+                        <input type="number" step="1" name="canvasY" id="coordCanvasY" required />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>ID / Text Reference</label>
+                        <input type="text" name="reference" id="coordReference" placeholder="Word text, image #, element id" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Line Number</label>
+                        <input type="number" name="lineNumber" id="coordLineNumber" readonly />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Line Text</label>
+                        <textarea name="lineText" id="coordLineText" rows="2" readonly placeholder="Resolved full line text"></textarea>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea name="notes" id="coordNotes" rows="3" placeholder="Optional context or instructions"></textarea>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" data-close-modal>Cancel</button>
+                    <button type="submit" class="btn btn-primary">Submit</button>
+                </div>
+                <div id="coordFormStatus" class="form-status" aria-live="polite"></div>
+            </form>
+        </div>
+    </div>
+
+    <script src="viewer.js"></script>
+</body>
+</html>

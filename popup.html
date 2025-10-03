@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Instructor</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="extension-container">
+        <div class="header">
+            <h1>🔍 PDF Instructor</h1>
+            <p>Interactive PDF analysis tool</p>
+        </div>
+
+        <div class="controls">
+            <div class="file-input-wrapper">
+                <label for="pdfFile">PDF Document</label>
+                <input type="file" id="pdfFile" accept=".pdf" class="file-input" />
+            </div>
+            <div class="file-input-wrapper">
+                <label for="jsonFile">JSON Geometry (optional)</label>
+                <input type="file" id="jsonFile" accept=".json" class="file-input" />
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <button id="openViewer" class="primary-btn" disabled>Open PDF Viewer</button>
+            <button id="openInTab" class="secondary-btn" disabled>Open in New Tab</button>
+        </div>
+
+        <div class="info-section">
+            <h3>Features:</h3>
+            <ul>
+                <li>🖼️ Image detection and highlighting</li>
+                <li>📊 Table detection and analysis</li>
+                <li>📝 Interactive text selection</li>
+                <li>📍 Coordinate submission</li>
+                <li>📏 Line spacing analysis</li>
+            </ul>
+        </div>
+
+        <div class="instructions">
+            <p><strong>Instructions:</strong></p>
+            <ol>
+                <li>Select a PDF file</li>
+                <li>Optionally add JSON geometry data</li>
+                <li>Click "Open PDF Viewer" to start</li>
+            </ol>
+            <p><small>
+                <strong>Shortcuts:</strong><br>
+                Ctrl+Shift+D: PDF diagnostics<br>
+                Ctrl+Shift+T: Overlay test
+            </small></p>
+        </div>
+
+        <div id="statusMessage" class="status-message"></div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

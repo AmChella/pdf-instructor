@@ -1,0 +1,40 @@
+<!-- PDF Instructor Extension Icon -->
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea"/>
+      <stop offset="100%" style="stop-color:#764ba2"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="128" height="128" rx="20" fill="url(#bg)"/>
+  
+  <!-- Document outline -->
+  <rect x="20" y="25" width="70" height="85" rx="4" fill="white" stroke="none"/>
+  
+  <!-- Document header lines -->
+  <rect x="28" y="35" width="30" height="3" rx="1" fill="#667eea"/>
+  <rect x="28" y="42" width="45" height="2" rx="1" fill="#ccc"/>
+  <rect x="28" y="47" width="40" height="2" rx="1" fill="#ccc"/>
+  
+  <!-- Image placeholder -->
+  <rect x="28" y="55" width="25" height="18" rx="2" fill="#e9ecef" stroke="#667eea" stroke-width="1"/>
+  <circle cx="35" cy="62" r="3" fill="#667eea"/>
+  <polygon points="45,67 50,62 53,65 53,70 28,70 28,67" fill="#667eea"/>
+  
+  <!-- Table representation -->
+  <rect x="28" y="78" width="54" height="3" fill="#764ba2"/>
+  <rect x="28" y="84" width="54" height="2" fill="#ccc"/>
+  <rect x="28" y="89" width="54" height="2" fill="#ccc"/>
+  <rect x="28" y="94" width="54" height="2" fill="#ccc"/>
+  
+  <!-- Magnifying glass -->
+  <circle cx="95" cy="45" r="18" fill="none" stroke="white" stroke-width="4"/>
+  <circle cx="95" cy="45" r="12" fill="none" stroke="white" stroke-width="2"/>
+  <line x1="107" y1="57" x2="118" y2="68" stroke="white" stroke-width="5" stroke-linecap="round"/>
+  
+  <!-- Highlight effect -->
+  <rect x="75" y="25" width="2" height="15" fill="rgba(255,255,255,0.3)"/>
+  <rect x="20" y="100" width="15" height="2" fill="rgba(255,255,255,0.3)"/>
+</svg>
